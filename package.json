@@ -9,9 +9,12 @@
   },
   "scripts": {
     "dev": "curb dev",
+    "bridge:local": "node --experimental-strip-types scripts/start-local-bridge.mjs",
+    "test:bridge": "node --experimental-strip-types --test tests/local-bridge.test.mjs tests/local-runtime-bridge.test.mjs",
+    "test:bridge:runtime": "node --experimental-strip-types --test tests/local-runtime-bridge.test.mjs",
     "check": "curb check",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:deterministic",
+    "test": "npm run test:deterministic && npm run test:bridge",
     "test:deterministic": "node --test tests/incident.test.mjs",
     "start": "curb start",
     "server": "curb server",

@@ -10,6 +10,7 @@
   --quiet:#727d8d;
   --line:#272c35;
   --amber:#f1ae76;
+  --danger:#f08b8b;
   --green:#8bd9b0;
   --panel:#12151a;
   --mono:"Cascadia Code","SFMono-Regular",Consolas,monospace
@@ -18,6 +19,11 @@
 .live-waiting p { color: var(--muted); font-size: 14px; line-height: 1.7; }
 .live-waiting a, .live-setup-link { color: var(--amber); font-size: 11px; }
 .live-setup-link { white-space: nowrap; }
+.local-session-picker { display:flex; align-items:center; gap:8px; color:#acbfd7; font:10px var(--mono); white-space:nowrap; }
+.local-session-picker select { max-width:min(360px,42vw); padding:7px 9px; color:#e9ebef; background:#0e1116; border:1px solid #394252; border-radius:5px; font:10px var(--mono); }
+.local-session-picker select:focus-visible { outline:2px solid var(--amber); outline-offset:2px; }
+.live-waiting .local-session-picker { margin:22px 0; flex-wrap:wrap; }
+.live-waiting .local-session-picker select { max-width:100%; }
 .empty-chart { display: grid; place-items: center; color: var(--muted); font-size: 12px; }
 .availability.unknown { color: var(--muted); }
 * {
@@ -601,7 +607,8 @@ h1 {
 }
 .rollback-row.available {
   border-color:#3d5f4e!important;
-  background:#1b382322
+  background:#1b382322;
+  box-shadow:0 0 0 1px #8bd9b010
 }
 .rollback-row.available .tool-icon,.rollback-row.complete .tool-icon {
   color:var(--green);
@@ -1284,9 +1291,21 @@ footer>span:first-child {
     left:57px
   }
 }
+/* These effects follow received state changes; they never advance incident state. */
+.status-dot.amber { background:var(--danger); box-shadow:0 0 0 3px #f08b8b0d; }
+.text-amber { color:var(--danger); }
+.chart:not(.chart-healthy) { color:var(--danger); }
+.incident-badge:not(.healthy-badge) { color:var(--danger); border-color:#6a3c42; background:#3b202544; }
+.status-dot,.text-amber,.text-green,.chart,.rollback-row,.availability { transition:color .55s ease,background-color .55s ease,border-color .55s ease,box-shadow .55s ease; }
+.live-observed { animation:live-observation .65s ease-out both; }
+.app.is-live .event { animation:live-observation .5s ease-out both; }
+.app.is-live .rollback-row.available { animation:live-capability .8s ease-out; }
+@keyframes live-observation { from { opacity:.55; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+@keyframes live-capability { from { box-shadow:0 0 0 0 #8bd9b05c; } to { box-shadow:0 0 0 8px #8bd9b000; } }
 @media(prefers-reduced-motion:reduce) {
   * {
     transition:none!important;
+    animation:none!important;
     scroll-behavior:auto!important
   }
 }

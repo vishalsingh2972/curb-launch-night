@@ -1,5 +1,7 @@
-import { GlobalTools, Instruction, Text, Tool, useMessage, useSend, z, type ToolResult } from "curb";
+import { useEffect } from "react";
+import { GlobalTools, Instruction, Text, Tool, useMessage, useSend, useSession, z, type ToolResult } from "curb";
 import { INCIDENT_EVENT_KEY, INCIDENT_SNAPSHOT_KEY } from "../incident/events.js";
+import { publishLocalSnapshot } from "../incident/local-mirror.js";
 import { useIncident } from "../incident/store.js";
 
 const verificationSchema = z.object({
@@ -10,6 +12,9 @@ const verificationSchema = z.object({
 export function IncidentContext() {
   const { incident, checkMetrics, inspectLogs, verifyOperator, executeRollback, dashboardSnapshot } = useIncident();
   const send = useSend();
+  const previewSessionId = useSession().call?.sessionId;
+  // The first genuine call snapshot is published after commit, never during React render.
+  useEffect(() => { void publishLocalSnapshot(previewSessionId, dashboardSnapshot()); }, [previewSessionId]);
   // A client may read state, but cannot supply state, a PIN or an authorization flag here.
   useMessage(INCIDENT_SNAPSHOT_KEY, {
     from: "client",
@@ -19,7 +24,8 @@ export function IncidentContext() {
   function publish(action: () => ToolResult): ToolResult {
     const before = dashboardSnapshot().sequence;
     const result = action();
-    for (const event of dashboardSnapshot().recentEvents.filter((event) => event.sequence > before)) {
+    const after = dashboardSnapshot();
+    for (const event of after.recentEvents.filter((event) => event.sequence > before)) {
       try {
         send.toClient(INCIDENT_EVENT_KEY, event);
       } catch {
@@ -27,6 +33,7 @@ export function IncidentContext() {
         console.warn("[launch-night] Dashboard event delivery failed; request a fresh snapshot.");
       }
     }
+    void publishLocalSnapshot(previewSessionId, after);
     return result;
   }
 

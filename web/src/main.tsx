@@ -1,8 +1,9 @@
-import { StrictMode, useState, useSyncExternalStore, type ReactNode } from "react";
+import { StrictMode, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import type { ActivityKind, DashboardAdapter, DashboardSnapshot, PreviewAdapter, PreviewScene } from "./adapter.ts";
 import { createPreviewAdapter } from "./preview.ts";
 import { createLiveAdapter } from "./live.ts";
+import { connectLocalMirror, watchLocalSessions, type LocalSession } from "./local-mirror.ts";
 import "./styles.css";
 
 function Icon({ name, size = 18 }: { name: "pulse" | "box" | "shield" | "arrow" | "lock" | "check" | "code" | "mic" | "terminal"; size?: number }) {
@@ -51,15 +52,15 @@ function PreviewControls({ adapter }: { adapter: PreviewAdapter }) {
 }
 
 /** Display-only view: the live adapter can replace fixtures without granting UI commands. */
-function Dashboard({ adapter, previewControls }: { adapter: DashboardAdapter; previewControls?: ReactNode }) {
+function Dashboard({ adapter, previewControls, localSessionControls, localMirror = false }: { adapter: DashboardAdapter; previewControls?: ReactNode; localSessionControls?: ReactNode; localMirror?: boolean }) {
   const snapshot = useSyncExternalStore(adapter.subscribe, adapter.getSnapshot);
   const { incident, activity, capabilities } = snapshot;
   const preview = snapshot.source === "preview";
-  if (!incident) return <div className="app"><header className="topbar"><a className="brand" href="/"><span className="brand-mark"><span /></span><strong>Launch Night.</strong></a><span className="environment">Simulated Environment</span></header><main><section className="panel live-waiting"><div className="eyebrow">LIVE MODE / CONNECTION PREPARED</div><h1>Waiting for a Curb session.</h1><p>{snapshot.connectionDetail}</p><p>No agent state has been received. Metrics, verification and recovery availability are unknown.</p><p>This page does not attach to the native preview or start a call. A session bootstrap must supply an already-joined LiveKit room to the prepared connector.</p><a href="/">Return to offline UI Preview Mode</a></section></main></div>;
+  if (!incident) return <div className="app"><header className="topbar"><a className="brand" href="/"><span className="brand-mark"><span /></span><strong>Launch Night.</strong></a><span className="environment">Simulated Environment</span></header><main><section className="panel live-waiting"><div className="eyebrow">{localMirror ? "LOCAL LIVE MIRROR" : "HOSTED LIVE MODE / CONNECTION PREPARED"}</div><h1>Waiting for a Curb session.</h1><p>{snapshot.connectionDetail}</p><p>No agent state has been received. Metrics, verification and recovery availability are unknown.</p>{localMirror ? <><p>Start a real conversation in the Curb preview at <strong>127.0.0.1:4000</strong>, then select its session below. This dashboard mirrors events; it does not join the voice room.</p>{localSessionControls}</> : <p>A hosted session bootstrap must supply an already-joined LiveKit room to the prepared connector.</p>}<a href="/">Return to offline UI Preview Mode</a></section></main></div>;
   const recovered = incident.incidentStatus === "resolved";
   const rollback = capabilities.find((capability) => capability.name === "execute_rollback")!;
   const available = capabilities.filter((capability) => capability.availability === "available").length;
-  return <div className={`app ${recovered ? "is-recovered" : ""}`}>
+  return <div className={`app ${recovered ? "is-recovered" : ""} ${preview ? "" : "is-live"}`}>
     <header className="topbar">
       <a className="brand" href="#main" aria-label="Launch Night command center"><span className="brand-mark"><span /></span><strong>Launch Night<span className="brand-period">.</span></strong></a>
       <div className="header-service"><span className={`status-dot ${recovered ? "green" : "amber"}`} /><span>Checkout API</span><span className="header-slash">/</span><span className="header-health">{incident.serviceHealth}</span></div>
@@ -68,12 +69,12 @@ function Dashboard({ adapter, previewControls }: { adapter: DashboardAdapter; pr
     <main id="main">
       <div className="page-heading"><div><div className="eyebrow">COMMAND CENTER <span>/</span> LAUNCH NIGHT</div><h1>AI Incident Copilot<span className="title-dot">.</span></h1><p>A clear view of the incident. A deliberate path to recovery.</p></div><div className={`incident-badge ${recovered ? "healthy-badge" : ""}`}><span className={`status-dot ${recovered ? "green" : "amber"}`} />{recovered ? "Incident resolved" : "Active incident"}<span className="badge-divider" />LN-001</div></div>
 
-      <section className="preview-bar" aria-label="Preview data controls"><div className="preview-copy"><span className="preview-label">{preview ? "UI PREVIEW MODE" : "LIVE MODE"}</span><span>{preview ? "Deterministic fixtures. No agent connected." : snapshot.connection === "connected" ? "Agent-reported events. Incident data remains synthetic." : snapshot.connectionDetail}</span></div>{previewControls}{preview && <a className="live-setup-link" href="?mode=live">Live Mode setup</a>}</section>
+      <section className="preview-bar" aria-label="Dashboard data source"><div className="preview-copy"><span className="preview-label">{preview ? "UI PREVIEW MODE" : localMirror ? "LOCAL LIVE MIRROR" : "HOSTED LIVE MODE"}</span><span>{preview ? "Deterministic fixtures. No agent connected." : snapshot.connection === "connected" ? localMirror ? "Real Curb preview events · synthetic incident · voice stays in the native preview." : "Agent-reported events. Incident data remains synthetic." : snapshot.connectionDetail}</span></div>{previewControls}{localSessionControls}{preview && <><a className="live-setup-link" href="?mode=local">Local Live Mirror</a><a className="live-setup-link" href="?mode=live">Hosted setup</a></>}</section>
 
       <div className="metrics" aria-live="polite" aria-atomic="true">
-        <section className="metric"><div className="metric-label"><Icon name="pulse" size={16} />Error rate<span className="metric-tag">DEMO / 60s</span></div><div className="metric-bottom"><div className={`metric-number ${recovered ? "text-green" : "text-amber"}`}>{incident.errorRatePercent.toFixed(1)}<span>%</span></div><span className="metric-note">{recovered ? "Back below threshold" : "Above 5% threshold"}</span></div></section>
-        <section className="metric"><div className="metric-label"><Icon name="box" size={16} />Current deployment</div><div className="metric-bottom"><div className="metric-number deployment-number">{incident.currentDeployment}</div><span className="metric-note">Stable: <code>{incident.previousStableDeployment}</code></span></div></section>
-        <section className="metric"><div className="metric-label"><Icon name="shield" size={16} />Service health</div><div className="metric-bottom"><div className={`health-number ${recovered ? "text-green" : "text-amber"}`}><span className={`status-dot ${recovered ? "green" : "amber"}`} />{recovered ? "Healthy" : "Degraded"}</div><span className="metric-note">Checkout API</span></div></section>
+        <section className="metric"><div className="metric-label"><Icon name="pulse" size={16} />Error rate<span className="metric-tag">DEMO / 60s</span></div><div className="metric-bottom"><div key={preview ? undefined : incident.errorRatePercent} className={`metric-number ${recovered ? "text-green" : "text-amber"} ${preview ? "" : "live-observed"}`}>{incident.errorRatePercent.toFixed(1)}<span>%</span></div><span className="metric-note">{recovered ? "Back below threshold" : "Above 5% threshold"}</span></div></section>
+        <section className="metric"><div className="metric-label"><Icon name="box" size={16} />Current deployment</div><div className="metric-bottom"><div key={preview ? undefined : incident.currentDeployment} className={`metric-number deployment-number ${preview ? "" : "live-observed"}`}>{incident.currentDeployment}</div><span className="metric-note">Stable: <code>{incident.previousStableDeployment}</code></span></div></section>
+        <section className="metric"><div className="metric-label"><Icon name="shield" size={16} />Service health</div><div className="metric-bottom"><div key={preview ? undefined : incident.serviceHealth} className={`health-number ${recovered ? "text-green" : "text-amber"} ${preview ? "" : "live-observed"}`}><span className={`status-dot ${recovered ? "green" : "amber"}`} />{recovered ? "Healthy" : "Degraded"}</div><span className="metric-note">Checkout API</span></div></section>
       </div>
 
       <div className="dashboard-grid">
@@ -84,16 +85,37 @@ function Dashboard({ adapter, previewControls }: { adapter: DashboardAdapter; pr
         <section className="panel activity-panel"><div className="panel-heading"><div><h2>Incident activity</h2><p>A chronological view of the response</p></div><span className="fixture-tag">{preview ? "PREVIEW EVENTS" : "CURB EVENTS"}</span></div><ol className="activity-feed" tabIndex={0} aria-label={preview ? "Synthetic incident activity, earliest first" : "Agent-reported activity, earliest first"}>{activity.map((event) => <li key={event.id} className={`event event-${event.kind}`}><time>+{event.offset}</time><span className="event-symbol"><Icon name={eventIcon[event.kind]} size={14} /></span><div><h3 className={event.kind === "tool_call" ? "mono" : ""}>{event.title}</h3><p>{event.detail}</p></div></li>)}</ol><div className="activity-bottom"><span className="status-dot gray" />{preview ? "Local fixture stream" : "Curb app messages"}<span>{activity.length} events</span></div></section>
 
         <div className="explanation-stack"><section className="panel code-panel"><div className="panel-heading"><div><h2><Icon name="code" size={16} /> State becomes capability</h2></div><span className="fixture-tag">CONCEPT</span></div><div className="code-file"><span /><span /><span /><code>incident-context.tsx · simplified</code></div><pre aria-label="Illustrative React conditional rendering"><code><span className="syntax-comment">{"// React controls what becomes available"}</span>{"\n"}<span className="syntax-brace">{"{"}</span><span className={incident.operatorVerified ? "syntax-green" : "syntax-orange"}>verified</span>{" && incidentActive && (\n  "}<span className="syntax-purple">{"<RollbackTool />"}</span>{"\n)"}<span className="syntax-brace">{"}"}</span></code></pre><div className="code-status"><span className={`status-dot ${rollback.availability === "available" ? "green" : "gray"}`} /><span>{rollback.availability === "unknown" ? "Current agent state unavailable" : rollback.availability === "locked" ? "verified = false → recovery unavailable" : recovered ? "incidentActive = false → recovery complete" : "verified = true → recovery available"}</span></div><p className="code-disclaimer">Illustrative code, not a compiled LLM request. Inspect real model inputs in Curb’s native inspector.</p></section>
-        <section className="voice-placeholder" aria-label="Future live voice session"><span className="voice-icon"><Icon name="mic" size={20} /></span><div><h2>Voice, when we’re ready.</h2><p>Reserved for the real Curb voice session.</p></div><span className="offline-badge">Not connected</span></section></div>
+        <section className="voice-placeholder" aria-label="Voice session"><span className="voice-icon"><Icon name="mic" size={20} /></span><div><h2>{localMirror ? "Voice in Curb preview" : "Voice, when we’re ready."}</h2><p>{localMirror ? "Speak at 127.0.0.1:4000; this page mirrors tool state." : "Reserved for the real Curb voice session."}</p></div><span className="offline-badge">{localMirror ? "Mirror only" : "Not connected"}</span></section></div>
       </div>
       <footer><span><span className="footer-dot" />{preview ? "All telemetry is synthetic. Preview controls never authorize recovery." : "Real agent events, synthetic incident. Authorization remains in the agent."}</span><span>Launch Night <span className="footer-separator">/</span> Powered by KugelAudio</span></footer>
     </main>
   </div>;
 }
 
-function App() {
-  const [adapter] = useState(() => new URLSearchParams(window.location.search).get("mode") === "live" ? createLiveAdapter() : createPreviewAdapter());
+function LocalMirror() {
+  const [sessions, setSessions] = useState<LocalSession[]>([]);
+  const [selected, setSelected] = useState("");
+  const [bridgeError, setBridgeError] = useState(false);
+  const [adapter, setAdapter] = useState<DashboardAdapter>(() => createLiveAdapter());
+  useEffect(() => watchLocalSessions((list) => { setSessions(list); setBridgeError(false); }, () => setBridgeError(true)), []);
+  useEffect(() => {
+    if (!selected) return;
+    const connection = connectLocalMirror(selected);
+    setAdapter(connection.adapter);
+    return connection.close;
+  }, [selected]);
+  const controls = <label className="local-session-picker">Curb preview session <select aria-label="Choose the active Curb preview session" value={selected} onChange={(event) => setSelected(event.target.value)}><option value="">{bridgeError ? "Bridge unavailable" : sessions.length ? "Choose a session" : "Waiting for sessions"}</option>{sessions.map((session) => <option key={session.sessionId} value={session.sessionId}>{session.sessionId} · {session.deployment} · {session.health}</option>)}</select></label>;
+  return <Dashboard adapter={adapter} localMirror localSessionControls={controls} />;
+}
+
+function OfflineOrHosted({ mode }: { mode: string | null }) {
+  const [adapter] = useState(() => mode === "live" ? createLiveAdapter() : createPreviewAdapter());
   return <Dashboard adapter={adapter} previewControls={import.meta.env.DEV && "selectScene" in adapter ? <PreviewControls adapter={adapter} /> : undefined} />;
+}
+
+function App() {
+  const mode = new URLSearchParams(window.location.search).get("mode");
+  return mode === "local" ? <LocalMirror /> : <OfflineOrHosted mode={mode} />;
 }
 
 createRoot(document.getElementById("root")!).render(<StrictMode><App /></StrictMode>);

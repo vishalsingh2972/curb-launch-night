@@ -8,6 +8,8 @@ export interface IncidentMessageClient {
 }
 export interface LiveAdapter extends DashboardAdapter {
   readonly ready: Promise<void>;
+  refresh(): Promise<void>;
+  markDisconnected(detail: string): void;
   close(): void;
 }
 
@@ -109,6 +111,8 @@ export function createLiveAdapter(client?: IncidentMessageClient): LiveAdapter {
   const ready = synchronize();
   return {
     ready,
+    refresh: synchronize,
+    markDisconnected: (detail) => { if (!closed) unavailable("disconnected", detail); },
     getSnapshot: () => snapshot,
     subscribe: (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     close: () => {

@@ -1,5 +1,17 @@
 # Step 5B: live dashboard preparation
 
+For a localhost voice recording without the hosted Session API, see [Local Live Mirror](./local-live-mirror.md). It mirrors real native-preview agent events over a local HTTP/SSE bridge while the native preview owns the voice room.
+
+## Hosted connection gate (checked November 2026)
+
+`npx curb info` confirms Curb 1.17.0, Node 22.17.1 and KugelAudio LLM/STT/TTS. `npx curb check` confirms the CLI login and project configuration. `.curb/link.json` links an organization and project, but contains no agent, deployment or public endpoint identifier. A deployed agent and an allowed dashboard origin have **not** been verified. No hosted resource was created during this check.
+
+The installed [connecting guide](../node_modules/curb/docs/agent-guide/connecting.md) documents `POST /v1/agents/public/endpoints/{id}/sessions` with origin authorization, and says the hosted Session API page supplies its distinct API address and request/response contract. That account-gated page could not be read in this environment. The documented web widget exposes `start()`, `end()` and context, but does not expose its room for `curb/client`. The runner's `POST /v1/sessions` is a private host route and is not a browser bootstrap.
+
+Until the hosted Session API contract and a configured endpoint are available, `?mode=live` intentionally shows unknown agent state. It does not offer a start button that would claim to start a call. The existing `connectLiveDashboard` helper and app-event adapter are ready to attach to a room created by that approved session flow. No frontend fixture can unlock recovery in the agent.
+
+To complete the connection, first obtain the account's hosted Session API documentation and identify its public origin, request and response fields, end-call method and browser-scoped room credential. Do not share a platform API key or room token in chat. Then approve a hosted deployment of this exact agent and configure a public endpoint that allows the dashboard's origin (including `http://127.0.0.1:5173` only if supported). With those concrete values, implement the call button, room/audio lifecycle and `connectLiveDashboard` attachment, and validate one real voice-driven tool event with development credits. Deployment and paid call validation require separate authorization; neither occurred here.
+
 Real simulated-agent actions now produce Curb app messages. A tested display adapter can consume them. This step does **not** create a hosted endpoint, obtain credentials, join a room, start a call or attach to the native preview. Curb stays at 1.17.0 with KugelAudio providers.
 
 ## Event contract
