@@ -85,3 +85,53 @@ test("loopback bridge authenticates backend, streams ordered events per session,
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("health probe reflects only validated per-session state and never accepts browser state", async () => {
+  const server = createLocalBridge({ token });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const probe = (sessionId) => fetch(`${base}/sessions/${sessionId}/health`, { headers: { Origin: DASHBOARD_ORIGIN } });
+  try {
+    const missing = await probe(first);
+    assert.equal(missing.status, 404);
+    assert.deepEqual(await missing.json(), { version: 1, simulated: true, health: "unknown", error: "session_not_found" });
+    assert.equal((await ingest(base, first, snapshot("stream-one"))).status, 202);
+    assert.equal((await ingest(base, second, snapshot("stream-two"))).status, 202);
+
+    const degraded = await probe(first);
+    assert.equal(degraded.status, 503);
+    const degradedBody = await degraded.json();
+    assert.deepEqual({ simulated: degradedBody.simulated, health: degradedBody.health, deployment: degradedBody.deployment },
+      { simulated: true, health: "degraded", deployment: "v2.4.1" });
+    assert.equal(degradedBody.sessionId, first);
+    assert.ok(Number.isFinite(Date.parse(degradedBody.observedAt)));
+    assert.equal((await probe(second)).status, 503);
+
+    const verifiedEvents = [event("stream-one", 1, "operator_verification_succeeded", verified), event("stream-one", 2, "recovery_capability_unlocked", verified)];
+    assert.equal((await ingest(base, first, snapshot("stream-one", verified, verifiedEvents))).status, 202);
+    assert.equal((await probe(first)).status, 503, "verification is not recovery");
+    const fake = await fetch(`${base}/sessions/${first}/health`, {
+      method: "POST", headers: { Origin: DASHBOARD_ORIGIN, "content-type": "application/json" },
+      body: JSON.stringify({ health: "healthy", deployment: "v2.4.0", operatorVerified: true }),
+    });
+    assert.equal(fake.status, 403);
+    assert.equal((await fetch(`${base}/sessions/${first}/health?health=healthy&deployment=v2.4.0`, { headers: { Origin: DASHBOARD_ORIGIN } })).status, 400);
+    assert.equal((await fetch(`${base}/sessions/${first}/health`, { headers: { Origin: "http://evil.invalid" } })).status, 403);
+    assert.equal((await probe(first)).status, 503, "probe reads never change incident state");
+
+    const recoveryEvents = [...verifiedEvents, event("stream-one", 3, "rollback_executed", recovered), event("stream-one", 4, "service_recovered", recovered)];
+    assert.equal((await ingest(base, first, snapshot("stream-one", recovered, recoveryEvents))).status, 202);
+    const healthy = await probe(first);
+    assert.equal(healthy.status, 200);
+    const healthyBody = await healthy.json();
+    assert.deepEqual({ simulated: healthyBody.simulated, health: healthyBody.health, deployment: healthyBody.deployment, errorRatePercent: healthyBody.errorRatePercent },
+      { simulated: true, health: "healthy", deployment: "v2.4.0", errorRatePercent: 1.1 });
+    assert.doesNotMatch(JSON.stringify(healthyBody), /2468|KUGELAUDIO_API_KEY/);
+    assert.equal((await probe(second)).status, 503, "session B must retain its own degraded state");
+    assert.equal((await (await fetch(`${base}/sessions/${first}`, { headers: { Origin: DASHBOARD_ORIGIN } })).json()).incident.incidentStatus, "resolved");
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

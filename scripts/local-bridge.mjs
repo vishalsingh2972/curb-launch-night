@@ -107,6 +107,18 @@ export function createLocalBridge({ token, dashboardOrigin = DASHBOARD_ORIGIN } 
       req.on("close", () => directoryClients.delete(res));
       return;
     }
+    const healthMatch = /^\/sessions\/(preview-[0-9a-f-]{36})\/health$/.exec(url.pathname);
+    if (healthMatch) {
+      if (url.search || req.headers["content-length"] || req.headers["transfer-encoding"]) return json(res, 400, { error: "probe_accepts_no_input" });
+      const entry = sessions.get(healthMatch[1]);
+      if (!entry) return json(res, 404, { version: 1, simulated: true, health: "unknown", error: "session_not_found" });
+      const { currentDeployment, serviceHealth, errorRatePercent } = entry.snapshot.incident;
+      return json(res, serviceHealth === "healthy" ? 200 : 503, {
+        version: 1, simulated: true, source: "Launch Night local incident mirror",
+        sessionId: healthMatch[1], health: serviceHealth, deployment: currentDeployment,
+        errorRatePercent, observedAt: new Date(entry.updatedAt).toISOString(),
+      });
+    }
     const match = /^\/sessions\/(preview-[0-9a-f-]{36})(?:\/events)?$/.exec(url.pathname);
     if (!match) return json(res, 404, { error: "not_found" });
     const entry = sessions.get(match[1]);

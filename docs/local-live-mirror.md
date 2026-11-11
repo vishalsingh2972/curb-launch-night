@@ -25,3 +25,15 @@ Expected voice-demo visuals:
 The bridge binds only `127.0.0.1:4187`. Browser reads require origin `http://127.0.0.1:5173`. Backend ingestion requires a random bearer token written to ignored `.curb/.env.local-bridge-token` (also blocked by Vite's default `.env.*` file deny rule), refuses any browser `Origin` header, and never exposes that token to the dashboard. The bridge keeps at most 20 in-memory sessions. No KugelAudio login token or API key is used. If the bridge is unavailable, the agent still completes tools; the dashboard shows a disconnected or unknown state. Restarting the bridge clears its mirror history; start a new preview conversation for an unambiguous recording.
 
 This is a localhost recording aid. Hosted browser voice sessions still require KugelAudio's account-gated Session API, a deployed agent and a configured public endpoint. The local mirror does not satisfy that hosted integration and should never be presented as the dashboard joining the voice room.
+
+## Synthetic checkout health probe
+
+Restart the bridge after updating its code, then start a **new** Curb preview conversation and select its session in the dashboard. Local Live Mirror shows a read-only **Checkout Health Probe** panel. Its button sends only a GET to the bridge. A new probe also runs when the selected, connected session's reported health or deployment changes; verification alone does not trigger one. The panel shows unknown on bridge disconnection instead of treating its last result as current.
+
+The endpoint is `GET http://127.0.0.1:4187/sessions/<preview-session-id>/health`. It requires the dashboard browser origin, as do other bridge reads. For a manual Git Bash check, replace the placeholder with the full session ID shown in the dashboard selector:
+
+```bash
+curl -i -H 'Origin: http://127.0.0.1:5173' 'http://127.0.0.1:4187/sessions/<preview-session-id>/health'
+```
+
+The initial synthetic incident returns **HTTP 503**, `health: "degraded"`, `deployment: "v2.4.1"`. Successful verification alone leaves it at 503. After Curb's confirmed rollback handler publishes its recovered snapshot, the **same URL** returns **HTTP 200**, `health: "healthy"`, `deployment: "v2.4.0"`. The body also identifies the simulated mirror and when the bridge accepted its snapshot. An unknown session returns HTTP 404 with `health: "unknown"`. The bridge cannot observe whether an otherwise quiet Curb voice call has hung up; this endpoint reports its last accepted session snapshot, not independent production liveness. The dashboard marks results unknown if its bridge connection is lost. No checkout requests or payments are processed.

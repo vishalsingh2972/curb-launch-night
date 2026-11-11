@@ -1295,11 +1295,102 @@ footer>span:first-child {
 .status-dot.amber { background:var(--danger); box-shadow:0 0 0 3px #f08b8b0d; }
 .text-amber { color:var(--danger); }
 .chart:not(.chart-healthy) { color:var(--danger); }
+.observation-chart .observation-point.elevated { color:var(--danger); }
+.observation-chart .observation-point.recovered { color:var(--green); }
+.observation-chart .observation-stem { stroke:currentColor; stroke-width:1.5; stroke-opacity:.42; stroke-dasharray:3 4; }
+.observation-chart .observation-dot { fill:currentColor; stroke:#12151a; stroke-width:2.5; }
+.observation-chart .observation-rate { fill:#edf3f1; font-size:14px; font-weight:700; }
+.observation-chart .observation-time { fill:#aeb9c8; font-size:10px; }
 .incident-badge:not(.healthy-badge) { color:var(--danger); border-color:#6a3c42; background:#3b202544; }
 .status-dot,.text-amber,.text-green,.chart,.rollback-row,.availability { transition:color .55s ease,background-color .55s ease,border-color .55s ease,box-shadow .55s ease; }
 .live-observed { animation:live-observation .65s ease-out both; }
 .app.is-live .event { animation:live-observation .5s ease-out both; }
-.app.is-live .rollback-row.available { animation:live-capability .8s ease-out; }
+.app.is-live .rollback-row.available { border-color:#70b18a!important; background:#25493355; animation:live-capability 1.25s ease-out; }
+.rollback-row.available .availability { font-weight:700; color:#b6f2ce; }
+.rollback-row.complete { background:#1a202122; border-color:#3b4644!important; }
+.rollback-row.complete .tool-icon { color:#889c96; background:#202829; border-color:#384540; }
+.rollback-row.complete .availability { color:#a1afa9; }
+.event-operator_verified h3,.event-capability_unlocked h3,.event-rollback_completed h3 { color:#baf0d0; }
+.capability-text code { font-size:12px; }
+.capability-text p { font-size:10px; }
+.availability { font-size:10px; }
+.event h3,.event h3.mono { font-size:12px; }
+.event p { font-size:10px; }
+.code-status,.code-disclaimer { font-size:10px; }
+.code-file>code { font-size:9px; }
+.activity-feed { height:214px; }
+.xray-panel { border-color:#39434c; background:linear-gradient(145deg,#182027,#12161b 70%); }
+.xray-heading h2 { font-size:15px; font-weight:650; color:#edf3f5; }
+.xray-heading p { font-size:11px; }
+.xray-body { display:grid; gap:7px; padding:10px 17px 12px; }
+.xray-state-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.xray-state { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; padding:6px 10px; background:#10161c; border:1px solid #313c45; border-radius:5px; }
+.xray-state code { font-size:11px; color:#bdc9d3; overflow-wrap:anywhere; }
+.xray-state-key { display:grid; gap:2px; min-width:0; }
+.xray-state-key small { color:#8795a4; font-size:9px; }
+.xray-state strong { font:600 13px var(--mono); color:#e1a39c; }
+.xray-state strong.xray-true { color:#a9eac3; }
+.xray-state strong.xray-false { color:#a6b2c0; }
+.xray-unknown .xray-state strong { color:#929fae; }
+.xray-result { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px; padding:7px 12px; border:1px solid #564741; border-radius:5px; background:#2c242244; transition:background-color .5s,border-color .5s,box-shadow .5s; }
+.xray-result span { display:grid; gap:3px; min-width:0; }
+.xray-result code { font-size:12px; color:#e2e8ee; }
+.xray-result small { font-size:9px; color:#9daab9; }
+.xray-result strong { flex-shrink:0; font:700 11px var(--mono); letter-spacing:.4px; color:#d6a69e; }
+.xray-result-verified { border-color:#62a47b; background:#24463266; box-shadow:0 0 0 1px #7cd19e22; }
+.xray-result-verified strong { color:#bbf2ce; }
+.xray-result-recovered { border-color:#3b4c47; background:#202b2944; }
+.xray-result-recovered strong { color:#a3b8ad; }
+.xray-result-unknown { border-color:#39434c; background:#1b222944; }
+.xray-result-unknown strong { color:#9cabba; }
+.xray-tools { display:flex; align-items:flex-start; gap:10px; }
+.xray-tools>span { flex:0 0 116px; color:#99a6b5; font-size:10px; line-height:1.35; }
+.xray-tool-list { display:flex; flex-wrap:wrap; gap:5px; min-width:0; }
+.xray-tool-list code { padding:3px 5px; background:#1d2b27; border:1px solid #355047; border-radius:3px; color:#b8dac5; font-size:9px; }
+.xray-tool-list code.xray-unlocked-tool { background:#244b33; border-color:#66a47a; color:#d5ffdf; }
+.xray-tool-list em { color:#9ba8b7; font-size:10px; font-style:normal; }
+.xray-source-label { color:#8997a8; font:9px var(--mono); }
+.xray-source { margin:0; padding:6px 10px; background:#0d1217; border:1px solid #27333d; border-radius:5px; color:#c5d6e4; font:11px/1.35 var(--mono); white-space:pre-wrap; overflow-wrap:anywhere; }
+.xray-flow { display:flex; gap:10px; align-items:baseline; margin:0; color:#aab9c7; font-size:10px; line-height:1.35; }
+.xray-flow strong { color:#d8e4e7; white-space:nowrap; }
+.xray-disclaimer { margin:0; color:#8d9dad; font-size:10px; line-height:1.35; }
+.live-waiting .xray-panel { margin:20px 0; }
+.health-probe-panel { min-width:0; padding:13px 16px; background:#12181e; border:1px solid #33414b; border-radius:7px; transition:border-color .5s,background-color .5s,box-shadow .5s; }
+.health-probe-panel.degraded { border-color:#704348; background:#21191d; }
+.health-probe-panel.healthy { border-color:#5a9f73; background:#17251d; }
+.probe-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.probe-heading h2 { margin:0; color:#e6edf1; font-size:13px; font-weight:650; }
+.probe-heading p { margin:3px 0 0; color:#9baab8; font-size:10px; }
+.probe-heading button { flex-shrink:0; padding:6px 9px; color:#d9e8e2; background:#20352b; border:1px solid #456351; border-radius:4px; font-size:10px; }
+.probe-heading button:hover:not(:disabled) { background:#2a4736; }
+.probe-heading button:disabled { opacity:.45; cursor:default; }
+.probe-result { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 12px; margin:11px 0 8px; }
+.probe-result .probe-status { color:#aab7c6; font:700 19px var(--mono); white-space:nowrap; }
+.health-probe-panel.degraded .probe-status { color:var(--danger); }
+.health-probe-panel.healthy .probe-status { color:var(--green); }
+.probe-result span { color:#c1cdd5; font-size:11px; }
+.probe-result code { margin-left:auto; color:#bdcbd5; font-size:11px; }
+.probe-meta { display:flex; justify-content:space-between; gap:12px; color:#8796a5; font:9px var(--mono); }
+.live-waiting .health-probe-panel { margin:12px 0 18px; }
+.app.is-live .health-probe-panel.probe-recovered { animation:probe-recovered .85s ease-out; }
+@keyframes probe-recovered { from { box-shadow:0 0 0 0 #8bd9b077; } to { box-shadow:0 0 0 10px #8bd9b000; } }
+.app.is-live .xray-result-verified { animation:xray-unlock 1.1s ease-out; }
+.app.is-live .xray-result-recovered { animation:xray-settle .8s ease-out; }
+@keyframes xray-unlock { from { box-shadow:0 0 0 0 #8bd9b077; } to { box-shadow:0 0 0 12px #8bd9b000; } }
+@keyframes xray-settle { from { background:#305d4266; } to { background:#202b2944; } }
+@media(min-width:1700px) {
+  .capability-text code { font-size:14px; }
+  .capability-text p,.event p { font-size:11px; }
+  .event h3,.event h3.mono { font-size:13px; }
+  .availability { font-size:11px; }
+  .activity-feed { height:258px; }
+  .xray-state code,.xray-result code { font-size:13px; }
+  .xray-state strong { font-size:15px; }
+  .xray-result strong { font-size:12px; }
+  .xray-tool-list code { font-size:10px; }
+  .xray-source { font-size:12px; }
+  .xray-flow,.xray-disclaimer { font-size:11px; }
+}
 @keyframes live-observation { from { opacity:.55; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
 @keyframes live-capability { from { box-shadow:0 0 0 0 #8bd9b05c; } to { box-shadow:0 0 0 8px #8bd9b000; } }
 @media(prefers-reduced-motion:reduce) {

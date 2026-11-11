@@ -1,9 +1,11 @@
-import { StrictMode, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { StrictMode, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import type { ActivityKind, DashboardAdapter, DashboardSnapshot, PreviewAdapter, PreviewScene } from "./adapter.ts";
 import { createPreviewAdapter } from "./preview.ts";
 import { createLiveAdapter } from "./live.ts";
 import { connectLocalMirror, watchLocalSessions, type LocalSession } from "./local-mirror.ts";
+import { AgentXRay } from "./xray.ts";
+import { HealthProbePanel } from "./health-probe-panel.tsx";
 import "./styles.css";
 
 function Icon({ name, size = 18 }: { name: "pulse" | "box" | "shield" | "arrow" | "lock" | "check" | "code" | "mic" | "terminal"; size?: number }) {
@@ -27,6 +29,22 @@ function ErrorChart({ snapshot }: { snapshot: DashboardSnapshot }) {
   const preview = snapshot.source === "preview";
   if (!preview && errorSamples.length === 0) return <div className="chart empty-chart">No metrics observations received yet.</div>;
   const recovered = incident.serviceHealth === "healthy";
+  if (!preview) {
+    const observations = errorSamples.slice(-4);
+    const y = (rate: number) => 154 - rate / 50 * 132;
+    const elapsed = (minute: number) => {
+      const seconds = Math.floor(minute * 60);
+      return `+${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+    };
+    return <svg className={`chart observation-chart ${recovered ? "chart-healthy" : ""}`} viewBox="0 0 752 190" role="img" aria-label={`Synthetic checkout error rate: ${observations.map((sample) => `${sample.rate.toFixed(1)} percent at ${elapsed(sample.minute)}`).join(", ")}. Discrete agent observations, not continuous monitoring.`}>
+      {[0, 10, 20, 30, 40, 50].map((rate) => <g key={rate}><line className="grid-line" x1="48" x2="720" y1={y(rate)} y2={y(rate)} /><text x="32" y={y(rate) + 4} textAnchor="end">{rate}%</text></g>)}
+      <line className="threshold" x1="48" x2="720" y1={y(5)} y2={y(5)} /><text className="threshold-label" x="716" y={y(5) - 6} textAnchor="end">5% threshold</text>
+      {observations.map((sample, index) => {
+        const x = 48 + (index + 1) / (observations.length + 1) * 672;
+        return <g className={`observation-point ${sample.rate > 5 ? "elevated" : "recovered"}`} key={`${sample.minute}:${index}`}><line className="observation-stem" x1={x} x2={x} y1={y(sample.rate)} y2="154" /><circle className="observation-dot" cx={x} cy={y(sample.rate)} r="6" /><text className="observation-rate" x={x} y={y(sample.rate) - 14} textAnchor="middle">{sample.rate.toFixed(1)}%</text><text className="observation-time" x={x} y="180" textAnchor="middle">{elapsed(sample.minute)}</text></g>;
+      })}
+    </svg>;
+  }
   const x = (index: number) => 48 + index / Math.max(1, errorSamples.length - 1) * 672;
   const y = (rate: number) => 154 - rate / 50 * 132;
   const points = errorSamples.map((sample, i) => `${x(i)},${y(sample.rate)}`).join(" ");
@@ -40,7 +58,6 @@ function ErrorChart({ snapshot }: { snapshot: DashboardSnapshot }) {
     <circle cx={x(errorSamples.length - 1)} cy={y(errorSamples.at(-1)!.rate)} r="4" fill="currentColor" stroke="#14171c" strokeWidth="2" />
     {preview && recovered && <><line className="deploy-line recovery-line" x1={x(10.5)} x2={x(10.5)} y1="21" y2="154" /><text className="recovery-label" x={x(10.5) + 7} y="14">Preview rollback</text></>}
     {preview && [0, 5, 10, 15].map((minute) => <text key={minute} x={x(minute)} y="180" textAnchor="middle">{minute === 15 ? "Now" : `${15 - minute}m ago`}</text>)}
-    {!preview && <><text x="48" y="180">Observation 1</text>{errorSamples.length > 1 && <text x="720" y="180" textAnchor="end">Observation {errorSamples.length}</text>}</>}
   </svg>;
 }
 
@@ -52,13 +69,14 @@ function PreviewControls({ adapter }: { adapter: PreviewAdapter }) {
 }
 
 /** Display-only view: the live adapter can replace fixtures without granting UI commands. */
-function Dashboard({ adapter, previewControls, localSessionControls, localMirror = false }: { adapter: DashboardAdapter; previewControls?: ReactNode; localSessionControls?: ReactNode; localMirror?: boolean }) {
+function Dashboard({ adapter, previewControls, localSessionControls, localSessionId, localMirror = false }: { adapter: DashboardAdapter; previewControls?: ReactNode; localSessionControls?: ReactNode; localSessionId?: string; localMirror?: boolean }) {
   const snapshot = useSyncExternalStore(adapter.subscribe, adapter.getSnapshot);
   const { incident, activity, capabilities } = snapshot;
   const preview = snapshot.source === "preview";
-  if (!incident) return <div className="app"><header className="topbar"><a className="brand" href="/"><span className="brand-mark"><span /></span><strong>Launch Night.</strong></a><span className="environment">Simulated Environment</span></header><main><section className="panel live-waiting"><div className="eyebrow">{localMirror ? "LOCAL LIVE MIRROR" : "HOSTED LIVE MODE / CONNECTION PREPARED"}</div><h1>Waiting for a Curb session.</h1><p>{snapshot.connectionDetail}</p><p>No agent state has been received. Metrics, verification and recovery availability are unknown.</p>{localMirror ? <><p>Start a real conversation in the Curb preview at <strong>127.0.0.1:4000</strong>, then select its session below. This dashboard mirrors events; it does not join the voice room.</p>{localSessionControls}</> : <p>A hosted session bootstrap must supply an already-joined LiveKit room to the prepared connector.</p>}<a href="/">Return to offline UI Preview Mode</a></section></main></div>;
+  const feedRef = useRef<HTMLOListElement>(null);
+  useEffect(() => { if (!preview && activity.length && feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight; }, [preview, activity.length]);
+  if (!incident) return <div className="app"><header className="topbar"><a className="brand" href="/"><span className="brand-mark"><span /></span><strong>Launch Night.</strong></a><span className="environment">Simulated Environment</span></header><main><section className="panel live-waiting"><div className="eyebrow">{localMirror ? "LOCAL LIVE MIRROR" : "HOSTED LIVE MODE / CONNECTION PREPARED"}</div><h1>Waiting for a Curb session.</h1><p>{snapshot.connectionDetail}</p><p>No agent state has been received. Metrics, verification and recovery availability are unknown.</p><AgentXRay snapshot={snapshot} />{localMirror && <HealthProbePanel sessionId={localSessionId} snapshot={snapshot} />}{localMirror ? <><p>Start a real conversation in the Curb preview at <strong>127.0.0.1:4000</strong>, then select its session below. This dashboard mirrors events; it does not join the voice room.</p>{localSessionControls}</> : <p>A hosted session bootstrap must supply an already-joined LiveKit room to the prepared connector.</p>}<a href="/">Return to offline UI Preview Mode</a></section></main></div>;
   const recovered = incident.incidentStatus === "resolved";
-  const rollback = capabilities.find((capability) => capability.name === "execute_rollback")!;
   const available = capabilities.filter((capability) => capability.availability === "available").length;
   return <div className={`app ${recovered ? "is-recovered" : ""} ${preview ? "" : "is-live"}`}>
     <header className="topbar">
@@ -78,14 +96,14 @@ function Dashboard({ adapter, previewControls, localSessionControls, localMirror
       </div>
 
       <div className="dashboard-grid">
-        <section className="panel chart-panel"><div className="panel-heading"><div><h2>Error rate over time</h2><p>{preview ? "Synthetic checkout requests \u00b7 last 15 minutes" : "Agent-reported observations; no fixture history"}</p></div><span className="legend"><span className={`status-dot ${recovered ? "green" : "amber"}`} />Error rate</span></div><ErrorChart snapshot={snapshot} /><div className="chart-footnote"><Icon name={recovered ? "check" : "arrow"} size={14} /><span>{preview ? recovered ? "Preview recovery: errors returned to 1.1% on v2.4.0." : "Errors began immediately after the v2.4.1 deployment." : "Only observations received from this agent session are plotted."}</span><span className="fixture-tag">{preview ? "FIXTURE" : "AGENT DATA"}</span></div></section>
+        <section className="panel chart-panel"><div className="panel-heading"><div><h2>{preview ? "Error rate over time" : "Error rate observations"}</h2><p>{preview ? "Synthetic checkout requests \u00b7 last 15 minutes" : "Synthetic Checkout API \u00b7 discrete agent observations"}</p></div><span className="legend"><span className={`status-dot ${recovered ? "green" : "amber"}`} />Error rate</span></div><ErrorChart snapshot={snapshot} /><div className="chart-footnote"><Icon name={recovered ? "check" : "arrow"} size={14} /><span>{preview ? recovered ? "Preview recovery: errors returned to 1.1% on v2.4.0." : "Errors began immediately after the v2.4.1 deployment." : "Only actual observations from this session are plotted; no continuous history."}</span><span className="fixture-tag">{preview ? "FIXTURE" : "AGENT DATA"}</span></div></section>
 
-        <section className="panel capability-panel"><div className="panel-heading"><div><h2>Agent capabilities</h2><p>{preview ? "Preview availability; not the model tool list" : "Agent-reported availability; not compiled model input"}</p></div><span className="count-pill">{available} available</span></div><div className="capability-list">{capabilities.map((capability) => <div className={`capability ${capability.name === "execute_rollback" ? `rollback-row ${capability.availability}` : ""}`} key={capability.name}><span className="tool-icon"><Icon name={capability.name === "execute_rollback" ? capability.availability === "locked" ? "lock" : capability.availability === "complete" ? "check" : "arrow" : "terminal"} size={16} /></span><div className="capability-text"><code>{capability.name}</code><p>{capability.description}</p></div><span className={`availability ${capability.availability}`}>{capability.availability === "available" ? "Available" : capability.availability === "locked" ? "Locked" : capability.availability === "unknown" ? "Unknown" : "Complete"}</span></div>)}</div></section>
+        <section className="panel capability-panel"><div className="panel-heading"><div><h2>Agent capabilities</h2><p>{preview ? "Preview availability; not the model tool list" : "Agent-reported availability; not compiled model input"}</p></div><span className="count-pill">{available} available</span></div><div className="capability-list">{capabilities.map((capability) => <div className={`capability ${capability.name === "execute_rollback" ? `rollback-row ${capability.availability}` : ""}`} key={capability.name}><span className="tool-icon"><Icon name={capability.name === "execute_rollback" ? capability.availability === "locked" ? "lock" : capability.availability === "complete" ? "lock" : "arrow" : "terminal"} size={16} /></span><div className="capability-text"><code>{capability.name}</code><p>{capability.description}</p></div><span className={`availability ${capability.availability}`}>{capability.availability === "available" ? "Available" : capability.availability === "locked" ? "Locked" : capability.availability === "unknown" ? "Unknown" : "Unavailable"}</span></div>)}</div></section>
 
-        <section className="panel activity-panel"><div className="panel-heading"><div><h2>Incident activity</h2><p>A chronological view of the response</p></div><span className="fixture-tag">{preview ? "PREVIEW EVENTS" : "CURB EVENTS"}</span></div><ol className="activity-feed" tabIndex={0} aria-label={preview ? "Synthetic incident activity, earliest first" : "Agent-reported activity, earliest first"}>{activity.map((event) => <li key={event.id} className={`event event-${event.kind}`}><time>+{event.offset}</time><span className="event-symbol"><Icon name={eventIcon[event.kind]} size={14} /></span><div><h3 className={event.kind === "tool_call" ? "mono" : ""}>{event.title}</h3><p>{event.detail}</p></div></li>)}</ol><div className="activity-bottom"><span className="status-dot gray" />{preview ? "Local fixture stream" : "Curb app messages"}<span>{activity.length} events</span></div></section>
+        <section className="panel activity-panel"><div className="panel-heading"><div><h2>Incident activity</h2><p>A chronological view of the response</p></div><span className="fixture-tag">{preview ? "PREVIEW EVENTS" : "CURB EVENTS"}</span></div><ol ref={feedRef} className="activity-feed" tabIndex={0} aria-live="polite" aria-label={preview ? "Synthetic incident activity, earliest first" : "Agent-reported activity, earliest first"}>{activity.map((event) => <li key={event.id} className={`event event-${event.kind}`}><time>+{event.offset}</time><span className="event-symbol"><Icon name={eventIcon[event.kind]} size={14} /></span><div><h3 className={event.kind === "tool_call" ? "mono" : ""}>{event.title}</h3><p>{event.detail}</p></div></li>)}</ol><div className="activity-bottom"><span className="status-dot gray" />{preview ? "Local fixture stream" : "Curb app messages"}<span>{activity.length} events</span></div></section>
 
-        <div className="explanation-stack"><section className="panel code-panel"><div className="panel-heading"><div><h2><Icon name="code" size={16} /> State becomes capability</h2></div><span className="fixture-tag">CONCEPT</span></div><div className="code-file"><span /><span /><span /><code>incident-context.tsx · simplified</code></div><pre aria-label="Illustrative React conditional rendering"><code><span className="syntax-comment">{"// React controls what becomes available"}</span>{"\n"}<span className="syntax-brace">{"{"}</span><span className={incident.operatorVerified ? "syntax-green" : "syntax-orange"}>verified</span>{" && incidentActive && (\n  "}<span className="syntax-purple">{"<RollbackTool />"}</span>{"\n)"}<span className="syntax-brace">{"}"}</span></code></pre><div className="code-status"><span className={`status-dot ${rollback.availability === "available" ? "green" : "gray"}`} /><span>{rollback.availability === "unknown" ? "Current agent state unavailable" : rollback.availability === "locked" ? "verified = false → recovery unavailable" : recovered ? "incidentActive = false → recovery complete" : "verified = true → recovery available"}</span></div><p className="code-disclaimer">Illustrative code, not a compiled LLM request. Inspect real model inputs in Curb’s native inspector.</p></section>
-        <section className="voice-placeholder" aria-label="Voice session"><span className="voice-icon"><Icon name="mic" size={20} /></span><div><h2>{localMirror ? "Voice in Curb preview" : "Voice, when we’re ready."}</h2><p>{localMirror ? "Speak at 127.0.0.1:4000; this page mirrors tool state." : "Reserved for the real Curb voice session."}</p></div><span className="offline-badge">{localMirror ? "Mirror only" : "Not connected"}</span></section></div>
+        <div className="explanation-stack"><AgentXRay snapshot={snapshot} />
+        {localMirror ? <HealthProbePanel sessionId={localSessionId} snapshot={snapshot} /> : <section className="voice-placeholder" aria-label="Voice session"><span className="voice-icon"><Icon name="mic" size={20} /></span><div><h2>{localMirror ? "Voice in Curb preview" : "Voice, when we’re ready."}</h2><p>{localMirror ? "Speak at 127.0.0.1:4000; this page mirrors tool state." : "Reserved for the real Curb voice session."}</p></div><span className="offline-badge">{localMirror ? "Mirror only" : "Not connected"}</span></section>}</div>
       </div>
       <footer><span><span className="footer-dot" />{preview ? "All telemetry is synthetic. Preview controls never authorize recovery." : "Real agent events, synthetic incident. Authorization remains in the agent."}</span><span>Launch Night <span className="footer-separator">/</span> Powered by KugelAudio</span></footer>
     </main>
@@ -97,15 +115,17 @@ function LocalMirror() {
   const [selected, setSelected] = useState("");
   const [bridgeError, setBridgeError] = useState(false);
   const [adapter, setAdapter] = useState<DashboardAdapter>(() => createLiveAdapter());
+  const [adapterSessionId, setAdapterSessionId] = useState("");
   useEffect(() => watchLocalSessions((list) => { setSessions(list); setBridgeError(false); }, () => setBridgeError(true)), []);
   useEffect(() => {
-    if (!selected) return;
+    if (!selected) { setAdapter(createLiveAdapter()); setAdapterSessionId(""); return; }
     const connection = connectLocalMirror(selected);
     setAdapter(connection.adapter);
+    setAdapterSessionId(selected);
     return connection.close;
   }, [selected]);
   const controls = <label className="local-session-picker">Curb preview session <select aria-label="Choose the active Curb preview session" value={selected} onChange={(event) => setSelected(event.target.value)}><option value="">{bridgeError ? "Bridge unavailable" : sessions.length ? "Choose a session" : "Waiting for sessions"}</option>{sessions.map((session) => <option key={session.sessionId} value={session.sessionId}>{session.sessionId} · {session.deployment} · {session.health}</option>)}</select></label>;
-  return <Dashboard adapter={adapter} localMirror localSessionControls={controls} />;
+  return <Dashboard adapter={adapter} localMirror localSessionControls={controls} localSessionId={selected === adapterSessionId ? selected : undefined} />;
 }
 
 function OfflineOrHosted({ mode }: { mode: string | null }) {

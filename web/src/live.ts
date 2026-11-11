@@ -17,10 +17,10 @@ function activity(event: IncidentEvent): ActivityEvent {
   const descriptions = {
     metrics_checked: ["tool_call", "check_metrics", `${event.incident.errorRatePercent}% errors · ${event.incident.currentDeployment} · ${event.incident.serviceHealth}`],
     logs_inspected: ["tool_call", "inspect_logs", "Agent inspected the synthetic checkout log timeline."],
-    operator_verification_succeeded: ["operator_verified", "Operator verification succeeded", "Demo PIN validated inside the agent; no PIN is sent to this page."],
+    operator_verification_succeeded: ["operator_verified", "Operator verified", "Demo PIN validated inside the agent; no PIN is sent to this page."],
     operator_verification_failed: ["verification_failed", "Operator verification failed", "The agent rejected the supplied demo PIN."],
     recovery_capability_unlocked: ["capability_unlocked", "Recovery capability unlocked", "Agent verification changed; Curb still owns caller confirmation."],
-    rollback_executed: ["rollback_completed", "Simulated rollback executed", "Actual tool transition: v2.4.1 → v2.4.0. No production system changed."],
+    rollback_executed: ["rollback_completed", "Rollback completed", "Simulated tool transition: v2.4.1 → v2.4.0. No production system changed."],
     service_recovered: ["service_recovered", "Service recovered", "Checkout API · healthy · 1.1% synthetic errors."],
   } as const;
   const [kind, title, detail] = descriptions[event.type];

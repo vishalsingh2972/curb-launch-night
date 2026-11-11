@@ -46,6 +46,6 @@ export function reportedCapabilities(incident: Readonly<IncidentState> | null, c
     { name: "check_metrics", description: "Read service health & deployment", availability: current && incident ? "available" : "unknown" },
     { name: "inspect_logs", description: "Investigate checkout failures", availability: current && incident ? "available" : "unknown" },
     { name: "verify_operator", description: "Agent validates the fictional demo PIN", availability: current && incident ? "available" : "unknown" },
-    { name: "execute_rollback", description: rollback === "unknown" ? "Awaiting current agent state" : rollback === "complete" ? "Agent reports recovery completed" : rollback === "available" ? "Agent verified · caller confirmation required" : "Requires operator verification", availability: rollback },
+    { name: "execute_rollback", description: rollback === "unknown" ? "Awaiting current agent state" : rollback === "complete" ? "No longer rendered after recovery" : rollback === "available" ? "Agent verified · caller confirmation required" : "Requires operator verification", availability: rollback },
   ];
 }
