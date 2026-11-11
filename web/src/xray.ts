@@ -1,5 +1,6 @@
 import { createElement as h } from "react";
 import type { DashboardSnapshot, ToolName } from "./adapter.ts";
+import type { PresentationMotion } from "./presentation.ts";
 
 export type XRayView = Readonly<{
   phase: "unknown" | "initial" | "verified" | "recovered";
@@ -29,35 +30,20 @@ export function deriveXRay(snapshot: DashboardSnapshot): XRayView {
   };
 }
 
-const gateSource = `{incident.operatorVerified &&
-  incident.incidentStatus === "active" ? (
-    <Tool name="execute_rollback" … />
-  ) : null}`;
-
 function stateValue(value: boolean | null) {
   return value === null ? "unknown" : String(value);
 }
 
-export function AgentXRay({ snapshot }: { snapshot: DashboardSnapshot }) {
+export function AgentXRay({ snapshot, motion = null }: { snapshot: DashboardSnapshot; motion?: PresentationMotion }) {
   const view = deriveXRay(snapshot);
   const known = view.phase !== "unknown";
-  const phaseText = view.phase === "verified" ? "Recovery unlocked" :
-    view.phase === "recovered" ? "Recovery complete" :
-    view.phase === "initial" ? "Recovery locked" : "Awaiting current session";
-  const path = view.phase === "recovered"
-    ? "confirmed execute_rollback → store update → React removes Tool"
-    : view.phase === "verified"
-      ? "verify_operator succeeded → store update → React renders Tool"
-      : view.phase === "initial"
-        ? "Successful verify_operator → store update → React renders Tool"
-        : "Waiting for an agent snapshot; no state is inferred.";
   return h("section", {
-    className: `panel xray-panel xray-${view.phase}`,
+    className: `panel xray-panel xray-${view.phase} ${motion ? `motion-${motion}` : ""}`,
     "aria-label": "Agent X-Ray",
     "aria-live": "polite",
   },
     h("div", { className: "panel-heading xray-heading" },
-      h("div", null, h("h2", null, "Agent X-Ray"), h("p", null, "Agent state → React render → capability")),
+      h("div", null, h("span", { className: "section-kicker" }, "REACT CONTEXT RUNTIME"), h("h2", null, "Agent X-Ray")),
       h("span", { className: "fixture-tag" }, view.source === "preview" ? "PREVIEW FIXTURE" : "SESSION STATE"),
     ),
     h("div", { className: "xray-body" },
@@ -67,19 +53,29 @@ export function AgentXRay({ snapshot }: { snapshot: DashboardSnapshot }) {
           h("span", { className: "xray-state-key" }, h("code", null, "incidentActive"), h("small", null, `incidentStatus: ${known ? snapshot.incident?.incidentStatus : "unknown"}`)),
           h("strong", { className: view.incidentActive === false ? "xray-false" : "" }, stateValue(view.incidentActive))),
       ),
+      h("div", { className: "xray-render-path", "aria-label": "Illustrative event to state to React render pipeline" },
+        h("span", null, h("small", null, "01 · TRIGGER"), h("code", null, view.phase === "recovered" ? "execute_rollback" : "verify_operator")),
+        h("b", { "aria-hidden": true }, "→"),
+        h("span", null, h("small", null, "02 · STATE"), h("code", null, "session state")),
+        h("b", { "aria-hidden": true }, "→"),
+        h("span", null, h("small", null, "03 · RENDER"), h("code", null, "React context")),
+      ),
+      h("div", { className: `xray-code-window ${view.rollbackAvailable ? "gate-active" : ""}` },
+        h("div", { className: "xray-source-label" }, h("span", null, "incident-context.tsx"), h("span", null, "JSX · abbreviated")),
+        h("pre", { className: "xray-source" }, h("code", null,
+          h("span", { className: "syntax-condition" }, '{incident.operatorVerified &&\n  incident.incidentStatus === "active" ? ('), "\n",
+          h("span", { className: "syntax-tool" }, '    <Tool name="execute_rollback" … />'), "\n  ) : null}")),
+      ),
       h("div", { key: view.phase, className: `xray-result xray-result-${view.phase}` },
-        h("span", null, h("code", null, "execute_rollback"), h("small", null, "Derived from the source gate")),
-        h("strong", null, known ? view.rollbackAvailable ? "AVAILABLE" : "UNAVAILABLE" : "UNKNOWN"),
+        h("span", null, h("code", null, "execute_rollback"), h("small", null, view.phase === "recovered" ? "Removed after recovery" : view.phase === "verified" ? "Rendered by the source gate" : view.phase === "unknown" ? "Awaiting current session state" : "Requires operator verification")),
+        h("strong", null, known ? view.rollbackAvailable ? "AVAILABLE" : view.phase === "recovered" ? "REMOVED" : "LOCKED" : "UNKNOWN"),
       ),
       h("div", { className: "xray-tools" },
-        h("span", null, view.source === "preview" ? "Fixture available tools" : "Agent-reported available tools"),
+        h("span", null, h("strong", { className: "xray-tool-count" }, known ? String(view.activeTools.length).padStart(2, "0") : "—"), view.source === "preview" ? "Fixture available tools" : "Agent-reported available app tools"),
         h("div", { className: "xray-tool-list" }, known
           ? view.activeTools.map((name) => h("code", { key: name, className: name === "execute_rollback" ? "xray-unlocked-tool" : "" }, name))
           : h("em", null, "Unknown until a current snapshot arrives")),
       ),
-      h("div", { className: "xray-source-label" }, "Conditional Tool gate · src/agent/incident-context.tsx · Tool props omitted"),
-      h("pre", { className: "xray-source" }, h("code", null, gateSource)),
-      h("p", { className: "xray-flow" }, h("strong", null, phaseText), h("span", null, path)),
       h("p", { className: "xray-disclaimer" }, view.source === "preview"
         ? "Fixture state only. Use Local Live Mirror for agent-reported state."
         : "Agent-reported state, not a captured LLM request. Curb's native Context inspector proves model-visible tools."),

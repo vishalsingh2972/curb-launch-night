@@ -74,7 +74,7 @@ export function IncidentContext() {
         <Tool name="check_metrics" description="Read current synthetic Checkout API error rate, health, incident state and deployment information." onSubmit={() => publish(checkMetrics)} />
         <Tool name="inspect_logs" description="Read synthetic checkout logs showing failures after v2.4.1, plus recovery entries after a simulated rollback." onSubmit={() => publish(inspectLogs)} />
         <Tool name="verify_operator" description="Validate the operator-supplied fictional demo PIN in code to unlock simulated recovery for this session. This is demo verification only."
-          schema={verificationSchema} tryWith={{ pin: "2468" }} onSubmit={({ pin }) => publish(() => verifyOperator(pin))} />
+          schema={verificationSchema} onSubmit={({ pin }) => publish(() => verifyOperator(pin))} />
 
         {/* Structural capability gate: rollback is absent from the model's tools until verification. */}
         {incident.operatorVerified && incident.incidentStatus === "active" ? (

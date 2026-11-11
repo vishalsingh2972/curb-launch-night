@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { connectLocalMirror, watchLocalSessions } from "../src/local-mirror.ts";
+import { adapterForSelectedSession, connectLocalMirror, watchLocalSessions } from "../src/local-mirror.ts";
 import { createInitialIncident } from "../../src/incident/simulation.ts";
 
 const sessionId = "preview-11111111-1111-4111-8111-111111111111";
@@ -33,6 +33,7 @@ test("local mirror consumes only selected-session bridge messages and never chan
     await connection.adapter.ready;
     const source = FakeEventSource.instances.at(-1);
     assert.equal(connection.adapter.getSnapshot().incident.errorRatePercent, 37.2);
+    assert.equal(connection.adapter.getSnapshot().sessionId, sessionId);
     assert.equal(connection.adapter.getSnapshot().capabilities.at(-1).availability, "locked");
     source.emit("incident", event(1, "metrics_checked", initial));
     source.emit("incident", event(2, "logs_inspected", initial));
@@ -56,6 +57,14 @@ test("local mirror consumes only selected-session bridge messages and never chan
     globalThis.EventSource = originalEventSource;
     globalThis.fetch = originalFetch;
   }
+});
+
+test("a new session selection displays unknown state until its own adapter binds", () => {
+  const oldAdapter = { getSnapshot: () => ({ incident: recovered }), subscribe: () => () => {} };
+  const waitingAdapter = { getSnapshot: () => ({ incident: null }), subscribe: () => () => {} };
+  const nextSession = "preview-22222222-2222-4222-8222-222222222222";
+  assert.equal(adapterForSelectedSession(nextSession, sessionId, oldAdapter, waitingAdapter), waitingAdapter);
+  assert.equal(adapterForSelectedSession(sessionId, sessionId, oldAdapter, waitingAdapter), oldAdapter);
 });
 
 test("session discovery exposes only listed preview IDs and closes its SSE listener", () => {

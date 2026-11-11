@@ -32,7 +32,7 @@ export const agent = defineAgent({
       "Check the checkout metrics",
       "Inspect the checkout logs",
       "Roll back the failing deployment",
-      "Verify me with demo PIN 2468",
+      "Verify me with my demo PIN",
     ],
     chatPlaceholder: "Investigate the simulated checkout incident…",
   },

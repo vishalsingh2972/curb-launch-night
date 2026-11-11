@@ -6,7 +6,10 @@ const investigation: readonly ActivityEvent[] = [
   { id: "metrics", offset: "00:04", kind: "tool_call", title: "check_metrics", detail: "Checkout API · 37.2% errors · deployment v2.4.1", source: "preview-fixture" },
   { id: "logs", offset: "00:08", kind: "tool_call", title: "inspect_logs", detail: "CHECKOUT_CONFIG_MISMATCH follows the latest deployment.", source: "preview-fixture" },
 ];
-const verification: ActivityEvent = { id: "verification", offset: "00:16", kind: "operator_verified", title: "Operator verification recorded", detail: "Preview fixture: recovery capability is now available.", source: "preview-fixture" };
+const verification: readonly ActivityEvent[] = [
+  { id: "verification", offset: "00:16", kind: "operator_verified", title: "Operator verified", detail: "Preview fixture: session verification state changed.", source: "preview-fixture" },
+  { id: "unlock", offset: "00:17", kind: "capability_unlocked", title: "Recovery capability unlocked", detail: "Preview fixture: React now renders the rollback Tool.", source: "preview-fixture" },
+];
 const recovery: readonly ActivityEvent[] = [
   { id: "confirmation", offset: "00:22", kind: "confirmation_pending", title: "Rollback confirmation requested", detail: "Preview fixture: v2.4.1 → v2.4.0, awaiting operator approval.", source: "preview-fixture" },
   { id: "recovery", offset: "00:28", kind: "rollback_completed", title: "Simulated recovery completed", detail: "Preview fixture: approval received; v2.4.0 · healthy · 1.1% errors.", source: "preview-fixture" },
@@ -22,9 +25,6 @@ export function previewSnapshot(scene: PreviewScene): DashboardSnapshot {
     operatorVerified: verified,
     ...(recovered ? { currentDeployment: "v2.4.0" as const, serviceHealth: "healthy" as const, errorRatePercent: 1.1, incidentStatus: "resolved" as const } : {}),
   };
-  const rates = recovered
-    ? [1.3, 1.2, 1.5, 1.3, 1.1, 28, 35, 37.2, 38, 36, 37.2, 1.8, 1.4, 1.1, 1.1, 1.1]
-    : [1.3, 1.2, 1.5, 1.3, 1.1, 28, 35, 37.2, 38, 36, 37.2, 36.8, 38.1, 37.6, 36.9, 37.2];
   return {
     source: "preview",
     revision: scene,
@@ -36,8 +36,10 @@ export function previewSnapshot(scene: PreviewScene): DashboardSnapshot {
       { name: "verify_operator", description: "Validate the fictional demo PIN", availability: "available" },
       { name: "execute_rollback", description: recovered ? "Recovery completed for this scene" : verified ? "Available · caller confirmation required" : "Requires operator verification", availability: recovered ? "complete" : verified ? "available" : "locked" },
     ],
-    errorSamples: rates.map((rate, minute) => ({ minute, rate })),
-    activity: [...investigation, ...(verified ? [verification] : []), ...(recovered ? recovery : [])],
+    // Clearly labeled fixtures mirror the sparse observations of the real demo, not fake traffic.
+    errorSamples: [{ minute: 4 / 60, rate: 37.2 }, ...(recovered ? [{ minute: 28 / 60, rate: 1.1 }] : [])],
+    activity: [...investigation, ...(verified ? verification : []), ...(recovered ? recovery : [])],
+    observedEvents: [],
   };
 }
 

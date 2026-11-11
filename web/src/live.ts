@@ -29,11 +29,11 @@ function activity(event: IncidentEvent): ActivityEvent {
 }
 
 /** No commands, tokens, room creation, local-preview endpoint or preview-state fallback. */
-export function createLiveAdapter(client?: IncidentMessageClient): LiveAdapter {
+export function createLiveAdapter(client?: IncidentMessageClient, sessionId?: string): LiveAdapter {
   let snapshot: DashboardSnapshot = {
-    source: "curb", revision: "awaiting-session", incident: null, confirmation: "unobserved",
+    source: "curb", sessionId, revision: "awaiting-session", incident: null, confirmation: "unobserved",
     connection: "waiting", connectionDetail: client ? "Synchronizing with the agent…" : "An already-joined Curb LiveKit room is required.",
-    capabilities: reportedCapabilities(null), errorSamples: [], activity: [],
+    capabilities: reportedCapabilities(null), errorSamples: [], activity: [], observedEvents: [],
   };
   let closed = false;
   let streamId: string | null = null;
@@ -53,9 +53,9 @@ export function createLiveAdapter(client?: IncidentMessageClient): LiveAdapter {
     history = [...merged.values()].sort((a, b) => a.sequence - b.sequence).slice(-100);
     const observations = history.filter((event) => event.type === "metrics_checked" || event.type === "service_recovered");
     snapshot = {
-      source: "curb", revision: `${streamId}:${sequence}`, incident: { ...incident },
+      source: "curb", sessionId, revision: `${streamId}:${sequence}`, incident: { ...incident },
       confirmation: "unobserved", connection: "connected", connectionDetail: "Agent-reported simulated incident. Confirmation lifecycle is not streamed by this contract.",
-      capabilities: reportedCapabilities(incident), activity: history.map(activity),
+      capabilities: reportedCapabilities(incident), activity: history.map(activity), observedEvents: history,
       // Only actual reported observations; never pad with preview chart history.
       errorSamples: observations.length ? observations.map((event) => ({ minute: event.elapsedMs / 60_000, rate: event.incident.errorRatePercent })) : [],
     };

@@ -8,7 +8,7 @@
     ]
   },
   "scripts": {
-    "dev": "curb dev",
+    "dev": "node scripts/dev.mjs",
     "bridge:local": "node --experimental-strip-types scripts/start-local-bridge.mjs",
     "test:bridge": "node --experimental-strip-types --test tests/local-bridge.test.mjs tests/local-runtime-bridge.test.mjs",
     "test:bridge:runtime": "node --experimental-strip-types --test tests/local-runtime-bridge.test.mjs",

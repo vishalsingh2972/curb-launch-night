@@ -1,7 +1,13 @@
 import { INCIDENT_EVENT_KEY, INCIDENT_SNAPSHOT_KEY } from "../../src/incident/events.ts";
 import { createLiveAdapter } from "./live.ts";
+import type { DashboardAdapter } from "./adapter.ts";
 
 const BRIDGE_URL = "http://127.0.0.1:4187";
+
+/** Never display a previous session's snapshot while a new selection is binding. */
+export function adapterForSelectedSession(selected: string, bound: string, adapter: DashboardAdapter, waiting: DashboardAdapter): DashboardAdapter {
+  return selected === bound ? adapter : waiting;
+}
 
 export type LocalSession = Readonly<{
   sessionId: string;
@@ -53,7 +59,7 @@ export function connectLocalMirror(sessionId: string) {
       return response.json();
     },
   };
-  const adapter = createLiveAdapter(client);
+  const adapter = createLiveAdapter(client, sessionId);
   source.onopen = () => { void adapter.ready.then(() => adapter.refresh()); };
   source.onerror = () => adapter.markDisconnected("Local bridge disconnected. Values shown are last received; reconnection will request a fresh snapshot.");
   return { adapter, close: () => { source.close(); adapter.close(); } };

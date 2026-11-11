@@ -16,6 +16,11 @@ export function healthProbeKey(sessionId: string | undefined, snapshot: Dashboar
   return `${sessionId}:${snapshot.incident.currentDeployment}:${snapshot.incident.serviceHealth}`;
 }
 
+/** Mask a prior HTTP result in the same render that loses the selected live binding. */
+export function visibleProbeState(key: string | null, state: ProbeState): ProbeState {
+  return key ? state : { kind: "unknown", detail: "No current selected Curb session snapshot.", httpStatus: null };
+}
+
 type Fetcher = (input: string, init: RequestInit) => Promise<Response>;
 
 function isProbeBody(value: unknown, sessionId: string, status: number): value is {

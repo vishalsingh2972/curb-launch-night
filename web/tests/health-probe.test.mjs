@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { createInitialIncident, executeRollback } from "../../src/incident/simulation.ts";
 import { createLiveAdapter } from "../src/live.ts";
 import { previewSnapshot } from "../src/preview.ts";
-import { createHealthProbeController, fetchHealthProbe, healthProbeKey } from "../src/health-probe.ts";
+import { createHealthProbeController, fetchHealthProbe, healthProbeKey, visibleProbeState } from "../src/health-probe.ts";
 
 const sessionId = "preview-11111111-1111-4111-8111-111111111111";
 const initial = createInitialIncident();
@@ -90,6 +90,7 @@ test("automatic probe follows only selected-session health/deployment changes", 
   assert.equal(controller.getSnapshot().highlightRecovered, false, "a repeated healthy GET does not replay the pulse");
 
   adapter.markDisconnected("Bridge disconnected");
+  assert.equal(visibleProbeState(healthProbeKey(sessionId, adapter.getSnapshot()), controller.getSnapshot()).kind, "unknown", "hide stale HTTP result before effects run");
   await controller.update(sessionId, adapter.getSnapshot());
   assert.equal(controller.getSnapshot().kind, "unknown");
   assert.equal(controller.getSnapshot().httpStatus, null, "do not present stale 200 as current");

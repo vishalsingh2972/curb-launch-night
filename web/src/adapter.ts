@@ -1,4 +1,5 @@
 import type { IncidentState } from "../../src/incident/simulation.ts";
+import type { IncidentEvent } from "../../src/incident/events.ts";
 
 /** Display contract only. A future transport maps validated Curb messages/events into this
  * shape. This interface intentionally grants no verification or recovery commands. */
@@ -20,6 +21,7 @@ export type Capability = Readonly<{
 export type ErrorSample = Readonly<{ minute: number; rate: number }>;
 export type DashboardSnapshot = Readonly<{
   source: "preview" | "curb";
+  sessionId?: string;
   revision: string;
   incident: Readonly<IncidentState> | null;
   confirmation: "none" | "pending" | "confirmed" | "cancelled" | "unobserved";
@@ -28,6 +30,7 @@ export type DashboardSnapshot = Readonly<{
   capabilities: readonly Capability[];
   errorSamples: readonly ErrorSample[];
   activity: readonly ActivityEvent[];
+  observedEvents: readonly IncidentEvent[];
 }>;
 export interface DashboardAdapter {
   getSnapshot(): DashboardSnapshot;

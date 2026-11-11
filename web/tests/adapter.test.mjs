@@ -19,6 +19,8 @@ test("preview scenes match the agent's initial, verified and recovered incident 
   assert.equal(recovered.incident.currentDeployment, "v2.4.0");
   assert.equal(recovered.incident.errorRatePercent, 1.1);
   assert.equal(recovered.capabilities.at(-1).availability, "complete");
+  assert.deepEqual(initial.errorSamples, [{ minute: 4 / 60, rate: 37.2 }]);
+  assert.deepEqual(recovered.errorSamples, [{ minute: 4 / 60, rate: 37.2 }, { minute: 28 / 60, rate: 1.1 }]);
 });
 
 test("scene changes notify once, unsubscribe works, and reset is deterministic", () => {
